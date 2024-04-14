@@ -1,0 +1,165 @@
+---
+title: "sepsis_notes_exploration"
+output: html_document
+date: "2024-04-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("/Users/mathewsamuel/Documents/mit/duke")
+library(tidyverse)
+library(DataExplorer)
+dir()
+```
+
+```{r}
+s <- read.csv("notes_sepsis.csv")
+names(s)
+s_demo <- s %>%
+  select(-c(TEXT, ROW_ID_x, ROW_ID_y, SUBJECT_ID_x, SUBJECT_ID_y, CHARTDATE, CHARTTIME, STORETIME, CATEGORY, ISERROR, CGID)) 
+
+
+names(s_demo)
+```
+
+```{r}
+s_demo %>%
+  group_by(HOSPITAL_EXPIRE_FLAG) %>%
+  tally()
+```
+
+```{r}
+table(s_demo$ICD9_CODE)
+
+
+
+s_demo2 <- s_demo %>%
+  mutate(ETHNICITY = fct_collapse(ETHNICITY,
+    ASIAN = c("ASIAN - CHINESE", "ASIAN - INDIAN"),
+    WHITE = c("WHITE", "WHITE - RUSSIAN"),
+    BLACK = c("BLACK/AFRICAN AMERICAN"),
+    HISPANIC = c("HISPANIC OR LATINO")
+  ))
+
+s_demo %>%
+  group_by(ETHNICITY) %>%
+  tally()
+s_demo2 %>%
+  group_by(ETHNICITY) %>%
+  tally()
+
+s_demo3 <- s_demo %>%
+  mutate(Ethnicity_Group = case_when(
+    grepl("WHITE", ETHNICITY) ~ "White",
+    grepl("ASIAN|MIDDLE EASTERN", ETHNICITY) ~ "Asian",
+    grepl("HISPANIC|LATINO|SOUTH AMERICAN", ETHNICITY) ~ "Hispanic",
+    grepl("BLACK|AFRICAN|CAPE VERDEAN|HAITIAN|CARIBBEAN", ETHNICITY) ~ "Black",
+    grepl("AMERICAN INDIAN|ALASKA NATIVE|NATIVE HAWAIIAN|PACIFIC ISLANDER", ETHNICITY) ~ "Native",
+    # grepl("MIDDLE EASTERN", ETHNICITY) ~ "Middle Eastern",
+    # grepl("MULTI RACE", ETHNICITY) ~ "Multi Race",
+    # grepl("PORTUGUESE", ETHNICITY) ~ "Portuguese",
+    grepl("UNABLE TO OBTAIN|UNKNOWN|NOT SPECIFIED|PATIENT DECLINED TO ANSWER", ETHNICITY) ~ "Unknown",
+    TRUE ~ "Other"
+  ))
+
+table(s_demo3$Ethnicity_Group)
+```
+
+```{r}
+s_clean <- s %>%
+  mutate(Ethnicity_Group = case_when(
+    grepl("WHITE", ETHNICITY) ~ "White",
+    grepl("ASIAN|MIDDLE EASTERN", ETHNICITY) ~ "Asian",
+    grepl("HISPANIC|LATINO|SOUTH AMERICAN", ETHNICITY) ~ "Hispanic",
+    grepl("BLACK|AFRICAN|CAPE VERDEAN|HAITIAN|CARIBBEAN", ETHNICITY) ~ "Black",
+    # grepl("AMERICAN INDIAN|ALASKA NATIVE|NATIVE HAWAIIAN|PACIFIC ISLANDER", ETHNICITY) ~ "Native",
+    # grepl("MIDDLE EASTERN", ETHNICITY) ~ "Middle Eastern",
+    # grepl("MULTI RACE", ETHNICITY) ~ "Multi Race",
+    # grepl("PORTUGUESE", ETHNICITY) ~ "Portuguese",
+    grepl("UNABLE TO OBTAIN|UNKNOWN|NOT SPECIFIED|PATIENT DECLINED TO ANSWER", ETHNICITY) ~ "Unknown",
+    TRUE ~ "Other"
+  )) %>%
+  select(-c(ROW_ID_x, ROW_ID_y, SUBJECT_ID_x, SUBJECT_ID_y, CHARTDATE, CHARTTIME, STORETIME, CATEGORY, ISERROR, CGID)) 
+```
+
+
+```{r}
+create_report(s_demo)
+
+write.csv(s_clean, file = "sepsistext_clean.csv", row.names = F)
+```
+
+
+```{r}
+s_clean_demo <- s_clean %>% select(-TEXT)
+s_clean_demo %>%
+  group_by(Ethnicity_Group, GENDER) %>%
+  tally()
+```
+
+```{r}
+# s_clean <- s_clean %>%
+#   mutate(lenwospaces = nchar(gsub(" ", "", TEXT)),
+#          lenspaces = nchar(nchar(TEXT)))
+# 
+# s_clean %>%
+#   group_by(Ethnicity_Group, GENDER) %>%
+#   summarise(medlengrp = median(lenwospaces),
+#             groupcnt = n())
+
+s_clean_ord <-
+s_clean %>%
+  mutate(lenwospaces = nchar(gsub(" ", "", TEXT)),
+         lenspaces = nchar(nchar(TEXT))) %>%
+  # mutate(medlen = median(lenwospaces),
+  #        medlenspace = median(lenspaces)) %>%
+  group_by(Ethnicity_Group, GENDER) %>%
+  arrange(lenwospaces) %>%
+  mutate(charlen_rank = row_number()) %>%
+  ungroup() %>%
+  arrange(Ethnicity_Group, GENDER, charlen_rank)
+#write.csv(s_clean_ord, file = "cleaner_sepsis.csv", row.names = F)
+
+
+ranked_data <- data %>%
+  group_by(Ethnicity_Group, GENDER) %>%
+  mutate(char_count = str_length(text_column)) %>%
+  arrange(desc(char_count)) %>%
+  mutate(char_rank = row_number()) %>%
+  ungroup()
+
+s_clean_ord_sample_20 <-
+s_clean_ord %>%
+  filter(DESCRIPTION=="Report") %>%
+  group_by(Ethnicity_Group, GENDER) %>%
+  slice(1:20)
+
+s_clean_ord_sample_10 <-
+s_clean_ord %>%
+  filter(DESCRIPTION=="Report") %>%
+  group_by(Ethnicity_Group, GENDER) %>%
+  slice(1:10)
+
+s_clean_ord_sample_5 <-
+s_clean_ord %>%
+  filter(DESCRIPTION=="Report") %>%
+  group_by(Ethnicity_Group, GENDER) %>%
+  slice(1:5)
+
+write.csv(s_clean_ord_sample_5, file = "sampleof5ethgen.csv")
+write.csv(s_clean_ord_sample_10, file = "sampleof10ethgen.csv")
+
+write.csv(s_clean_ord_sample_20, file = "sampleof20ethgen.csv")
+
+s_clean_ord_next_15 <-
+s_clean_ord_sample_20 %>%
+  group_by(Ethnicity_Group, GENDER) %>%
+  slice(-c(1:5))
+
+write.csv(s_clean_ord_next_15, file = "sampleofnext15ethgen.csv")
+
+```
+
